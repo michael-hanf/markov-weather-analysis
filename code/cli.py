@@ -11,6 +11,7 @@ from markov_weather.simulator import WeatherSimulator
 from markov_weather.validation import ValidationAnalyzer
 from markov_weather.model_2order import HigherOrderMarkovChain
 from markov_weather.validation_2order import HigherOrderValidationAnalyzer
+from markov_weather.markov_test import MarkovPropertyTest
 
 
 @click.group()
@@ -509,6 +510,24 @@ def validate_higher(region: str, data_file: str, order: int):
         click.echo(f"Note: Matrices must be generated first with 'python cli.py generate-matrices-higher'", err=True)
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)
+
+
+@cli.command()
+@click.option('--data-file', required=True, help='CSV-Datei mit Spalte weather_state')
+@click.option('--month', default=None, help='Optionaler Monatsfilter (z.B. january)')
+@click.option('--alpha', type=float, default=0.05, help='Signifikanzniveau (Standard: 0.05)')
+def test_markov_property(data_file: str, month: str, alpha: float):
+    """Anderson-Goodman χ²-Test: Prüft die Markov-Eigenschaft (Gedächtnislosigkeit)"""
+
+    try:
+        test = MarkovPropertyTest(data_file, month=month)
+        result = test.run(alpha=alpha)
+        MarkovPropertyTest.print_report(result, data_file)
+
+    except FileNotFoundError as e:
+        click.echo(f"❌ Fehler: {e}", err=True)
+    except ValueError as e:
+        click.echo(f"❌ Fehler: {e}", err=True)
 
 
 if __name__ == '__main__':

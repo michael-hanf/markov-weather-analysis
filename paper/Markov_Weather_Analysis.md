@@ -9,7 +9,7 @@
 
 ## ABSTRACT
 
-Markov chains offer simple, interpretable predictions, yet practitioners observe inconsistent success—working well for some problems while failing for others. This paper extracts universal principles determining Markov applicability by analyzing weather prediction across three climatically distinct regions representing a stability spectrum. Analysis of 336 models using 10-30 years of data reveals that prediction accuracy depends not on data quantity but on problem structure. We identify five critical factors: (1) dominant states, (2) transition stability, (3) minimal external factors, (4) data density, and (5) short memory. We demonstrate that while Markov models achieve high absolute accuracy in stable regions, their relative value over naive baselines is highest in chaotic regimes. We propose a diagnostic framework to help practitioners pre-screen problem suitability, avoiding costly dead-ends. Key finding: data quantity cannot overcome fundamental structural constraints.
+Markov chains offer simple, interpretable predictions, yet practitioners observe inconsistent success—working well for some problems while failing for others. This paper extracts universal principles determining Markov applicability by analyzing weather prediction across three climatically distinct regions representing a stability spectrum. Analysis of 336 models using 10-30 years of data reveals that prediction accuracy depends not on data quantity but on problem structure. We identify five critical factors: (1) dominant states, (2) transition stability, (3) minimal external factors, (4) data density, and (5) short memory. We formally verify the Markov assumption using the Anderson-Goodman χ²-test, finding that 2nd-order dependencies are statistically detectable in two of three regions—yet higher-order models yield no prediction gain. This resolves an apparent contradiction: the memory signal exists, but available data density is insufficient to exploit it reliably. We demonstrate that while Markov models achieve high absolute accuracy in stable regions, their relative value over naive baselines is highest in chaotic regimes. We propose a diagnostic framework to help practitioners pre-screen problem suitability, avoiding costly dead-ends. Key finding: data quantity cannot overcome fundamental structural constraints.
 
 **Keywords:** Markov chains, time series prediction, model selection, weather forecasting, applicability framework
 
@@ -61,7 +61,23 @@ We trained 336 transition matrices using Maximum Likelihood Estimation with Lapl
 * **Datasets:** 10-year (1995–2004) vs. 30-year (1995–2024) subsets.
 * **Validation:** Chronological split (First 82% Training, Last 18% Test).
 
-### 3.3 Validation Metrics
+### 3.3 Statistical Test of the Markov Assumption
+
+Prior Markov weather studies (e.g., Bellone et al., 2000) typically assume memorylessness without verification. We formally test whether the 1st-order Markov property holds using the **Anderson-Goodman χ²-test** (Anderson & Goodman, 1957).
+
+**Null hypothesis H₀:** The next state depends only on the current state, not on the state before it:
+
+$$P(X_{t+1} = k \mid X_t = j,\, X_{t-1} = i) = P(X_{t+1} = k \mid X_t = j)$$
+
+**Procedure:** For each conditioning state $j$, we count all observed triplets $n_{ijk}$ (yesterday $i$ → today $j$ → tomorrow $k$) and compare them against the expected counts under H₀:
+
+$$E[n_{ijk}] = \frac{n_{ij} \cdot n_{jk}}{n_j}$$
+
+The test statistic $\chi^2 = \sum_{i,j,k} \frac{(n_{ijk} - E[n_{ijk}])^2}{E[n_{ijk}]}$ follows a chi-squared distribution with $df = \sum_j (r_j - 1)(s - 1)$ degrees of freedom, where $r_j$ is the number of predecessor states with sufficient observations and $s = 5$ is the number of weather states. Cells with $E[n_{ijk}] < 5$ were excluded from the statistic and reported separately as a sparse-data caveat.
+
+The test was applied to the full 30-year datasets (1995–2024) for all three regions.
+
+### 3.4 Validation Metrics
 
 Crucially, we evaluate **"Lift"** to measure true model intelligence:
 * **Accuracy:** % correct predictions.
@@ -112,7 +128,25 @@ Low accuracy, but highest relative intelligence.
 * **Lift:** **+14.1 pp**
 * *Finding:* Despite low absolute accuracy, the model extracts significant structure from chaos. This region validates the Markov mechanism most strongly, outperforming the random/naive baseline significantly.
 
-### 4.3 Data Quantity Analysis
+### 4.3 Formal Test of the Markov Property
+
+Table 1 shows the Anderson-Goodman test results for all three regions on 30-year data (significance level α = 0.05).
+
+**Table 1: Anderson-Goodman χ²-Test Results (30-year data, all months)**
+
+| Region | χ² | df | p-value | Decision |
+|---|---|---|---|---|
+| A – Coastal-Stable | 302.3 | 72 | < 0.001 | **H₀ rejected** |
+| B – Inland-Transitional | 73.2 | 56 | 0.061 | H₀ retained |
+| C – Alpine-Complex | 112.7 | 52 | < 0.001 | **H₀ rejected** |
+
+*Note: Cells with E[n] < 5 excluded (34–51% of cells, primarily involving rare states). This sparse-data caveat weakens the test for Region A in particular.*
+
+**Per-state breakdown:** In Regions A and C, the signal originates almost exclusively from the dominant state `cloudy` (Region A: χ²=265.3 on df=16, p≈0; Region C: χ²=66.4 on df=12, p≈0). All other states retain H₀ individually. In Region B, no individual state crosses the significance threshold.
+
+**Interpretation:** 2nd-order dependencies are statistically detectable in two of three regions. The data *contains* multi-day memory—but this finding must be read alongside Section 4.4.
+
+### 4.4 Data Quantity Analysis
 
 Comparing 10-year vs. 30-year training sets reveals a learning plateau (Figure 3). Tripling the data volume produced changes indistinguishable from statistical noise.
 
@@ -123,6 +157,8 @@ Comparing 10-year vs. 30-year training sets reveals a learning plateau (Figure 3
 </p>
 
 *Finding:* Changes are within statistical noise (max difference ±0.6pp). **System structure, not data quantity, limits accuracy.**
+
+Taken together with Section 4.3, this resolves an apparent contradiction: the χ²-test shows that 2nd-order signal *exists* in the data, yet higher-order models do not improve predictions. The explanation lies in the transition from 1st-order to 2nd-order: the matrix grows from 5×5 to 25×5. At the same data volume, each cell receives on average only one-fifth as many observations, pushing the majority of cells below the reliability threshold of ≥50 samples. The memory horizon is real—but the data density required to exploit it exceeds what is available, even across 30 years.
 
 ---
 
@@ -143,6 +179,7 @@ Region A (2 factors) vs. Region C (4+ factors) shows a 22pp accuracy gap. Unobse
 **4. Data Density:**
 Higher orders require exponential data. Order 3 (625 transitions) became sparse even with 10 years of data.
 * *Rule of Thumb:* ≥50 samples per transition are required for robust estimation.
+* *Refined finding:* The Anderson-Goodman test (Section 4.3) confirms that 2nd-order memory *does* exist in the data for two regions—yet cannot be exploited. This is a stronger and more precise statement than simply observing no prediction gain: the signal is real, but the data density bottleneck prevents reliable matrix estimation. Practitioners facing similar trade-offs should estimate whether $s^{order} \times 50$ observations are realistically available before adopting higher-order models.
 
 **5. Short Memory Horizon:**
 Markov excelled in Region A (1-step memory) but offered diminishing returns in Region C compared to the complexity added. Problems requiring long-range dependency (Language, DNA) are better suited for LSTMs/Transformers.
@@ -170,6 +207,7 @@ Practitioners must diagnose the "physics" of their problem—dominance, stabilit
 
 ## 7. REFERENCES
 
+- Anderson, T. W., & Goodman, L. A. (1957). "Statistical Inference about Markov Chains." *Annals of Mathematical Statistics*, 28(1), 89–110.
 - Bauer, P., Thorpe, A., & Brunet, G. (2015). "The quiet revolution of numerical weather prediction." *Nature*, 525(7567).
 - Bellone, E., et al. (2000). "Estimation of multivariable precipitation... by means of HMM." *J. Hydrology*, 235.
 - Brin, S., & Page, L. (1998). "The anatomy of a large-scale hypertextual web search engine." *Computer Networks*, 30.
